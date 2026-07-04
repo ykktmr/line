@@ -1,12 +1,11 @@
 // OAuth トークンと Push 通知チャンネル情報の保存を抽象化する。
-// Vercel KV（環境変数 KV_REST_API_URL / KV_REST_API_TOKEN）が設定されていればそちらを使う。
-// 未設定（ローカル開発など）の場合はファイルシステムにフォールバックする。
-// サーバーレス環境（Vercel等）ではファイルシステムは永続化されないため、
-// 本番では必ず KV を接続すること。
+// 環境変数 KV_REST_API_URL / KV_REST_API_TOKEN があれば Upstash Redis（Vercel KV 互換）に
+// 直接接続して保存する。未設定（ローカル開発など）の場合はファイルシステムにフォールバックする。
+// サーバーレス環境（Vercel等）ではファイルシステムは永続化されないため、本番では必ず KV を接続すること。
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
 
 export interface StoredTokens {
   accessToken: string;
@@ -35,17 +34,23 @@ export interface TokenStore {
 const KV_KEY = "line-app:google-calendar-store";
 
 class KvTokenStore implements TokenStore {
+  private redis: Redis;
+
+  constructor(url: string, token: string) {
+    this.redis = new Redis({ url, token });
+  }
+
   async read(): Promise<StoreShape> {
-    const data = await kv.get<StoreShape>(KV_KEY);
+    const data = await this.redis.get<StoreShape>(KV_KEY);
     return data ?? {};
   }
 
   async write(data: StoreShape): Promise<void> {
-    await kv.set(KV_KEY, data);
+    await this.redis.set(KV_KEY, data);
   }
 
   async clear(): Promise<void> {
-    await kv.del(KV_KEY);
+    await this.redis.del(KV_KEY);
   }
 }
 
@@ -81,16 +86,14 @@ class FileTokenStore implements TokenStore {
   }
 }
 
-function hasKv(): boolean {
-  return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
-}
-
 let instance: TokenStore | null = null;
 
 export function getTokenStore(): TokenStore {
   if (!instance) {
-    if (hasKv()) {
-      instance = new KvTokenStore();
+    const url = process.env.KV_REST_API_URL;
+    const token = process.env.KV_REST_API_TOKEN;
+    if (url && token) {
+      instance = new KvTokenStore(url, token);
     } else {
       const file =
         process.env.TOKEN_STORE_PATH ??
