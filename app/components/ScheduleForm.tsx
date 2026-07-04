@@ -2,7 +2,13 @@
 
 import { useMemo, useState } from "react";
 
-interface Estimate {
+interface Stop {
+  title: string;
+  location: string;
+  time: string; // datetime-local
+}
+
+interface Segment {
   minutes: number;
   note: string;
 }
@@ -45,37 +51,61 @@ function formatTime(d: Date): string {
   });
 }
 
-export function ScheduleForm() {
-  const [title, setTitle] = useState("");
-  const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
-  const [arrival, setArrival] = useState("");
-  const [mode, setMode] = useState("train");
-  const [duration, setDuration] = useState(60);
+const emptyStop = (): Stop => ({ title: "", location: "", time: "" });
 
+export function ScheduleForm() {
+  const [stops, setStops] = useState<Stop[]>([emptyStop(), emptyStop()]);
+  const [mode, setMode] = useState("train");
   const [loading, setLoading] = useState(false);
-  const [estimate, setEstimate] = useState<Estimate | null>(null);
-  const [minutes, setMinutes] = useState(0);
+  const [segments, setSegments] = useState<Segment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const updateStop = (i: number, patch: Partial<Stop>) => {
+    setStops((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+    setSegments(null);
+  };
+
+  const addStop = () => {
+    setStops((prev) => [...prev, emptyStop()]);
+    setSegments(null);
+  };
+
+  const removeStop = (i: number) => {
+    setStops((prev) => prev.filter((_, idx) => idx !== i));
+    setSegments(null);
+  };
+
+  const setSegmentMinutes = (i: number, minutes: number) => {
+    setSegments((prev) =>
+      prev ? prev.map((s, idx) => (idx === i ? { ...s, minutes } : s)) : prev
+    );
+  };
+
+  const canSubmit =
+    stops.length >= 2 &&
+    stops.every((s) => s.location.trim() && s.time) &&
+    !loading;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setEstimate(null);
+    setSegments(null);
 
     try {
       const res = await fetch("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ origin, destination, mode }),
+        body: JSON.stringify({
+          stops: stops.map((s) => ({ title: s.title, location: s.location })),
+          mode,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? "エラーが発生しました");
       } else {
-        setEstimate(data);
-        setMinutes(data.minutes);
+        setSegments(data.segments);
       }
     } catch {
       setError("通信エラーが発生しました。再試行してください。");
@@ -84,82 +114,35 @@ export function ScheduleForm() {
     }
   };
 
-  const arrivalDate = useMemo(
-    () => (arrival ? new Date(arrival) : null),
-    [arrival]
-  );
+  const modeLabel = modes.find((m) => m.value === mode)?.label ?? mode;
 
-  const departureDate = useMemo(() => {
-    if (!arrivalDate) return null;
-    return new Date(arrivalDate.getTime() - minutes * 60_000);
-  }, [arrivalDate, minutes]);
-
-  const travelUrl = useMemo(() => {
-    if (!arrivalDate || !departureDate) return null;
-    return buildGCalUrl({
-      title: `🚃 移動: ${origin} → ${destination}`,
-      start: departureDate,
-      end: arrivalDate,
-      details: `${modes.find((m) => m.value === mode)?.label ?? mode}での移動（約${minutes}分）${estimate?.note ? `\n${estimate.note}` : ""}`,
-      location: origin,
+  // 各区間について、次の予定の開始時刻から移動時間を逆算した出発時刻とカレンダーURLを算出
+  const travelBlocks = useMemo(() => {
+    if (!segments) return [];
+    return segments.map((seg, i) => {
+      const from = stops[i];
+      const to = stops[i + 1];
+      const arrival = to?.time ? new Date(to.time) : null;
+      const departure = arrival
+        ? new Date(arrival.getTime() - seg.minutes * 60_000)
+        : null;
+      const url =
+        arrival && departure && seg.minutes > 0
+          ? buildGCalUrl({
+              title: `🚃 移動: ${from.location} → ${to.location}`,
+              start: departure,
+              end: arrival,
+              details: `${modeLabel}での移動（約${seg.minutes}分）${seg.note ? `\n${seg.note}` : ""}`,
+              location: from.location,
+            })
+          : null;
+      return { seg, from, to, arrival, departure, url };
     });
-  }, [arrivalDate, departureDate, origin, destination, mode, minutes, estimate]);
-
-  const eventUrl = useMemo(() => {
-    if (!arrivalDate) return null;
-    return buildGCalUrl({
-      title: title || "予定",
-      start: arrivalDate,
-      end: new Date(arrivalDate.getTime() + duration * 60_000),
-      location: destination,
-    });
-  }, [arrivalDate, title, duration, destination]);
+  }, [segments, stops, modeLabel]);
 
   return (
     <div>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            予定のタイトル
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="例：打ち合わせ"
-            className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-          />
-        </div>
-
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              出発地
-            </label>
-            <input
-              type="text"
-              value={origin}
-              onChange={(e) => setOrigin(e.target.value)}
-              placeholder="例：横浜駅"
-              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              required
-            />
-          </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              目的地
-            </label>
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="例：渋谷駅"
-              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              required
-            />
-          </div>
-        </div>
-
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             移動手段
@@ -169,7 +152,10 @@ export function ScheduleForm() {
               <button
                 key={m.value}
                 type="button"
-                onClick={() => setMode(m.value)}
+                onClick={() => {
+                  setMode(m.value);
+                  setSegments(null);
+                }}
                 className="flex-1 py-2 rounded-xl text-xs font-medium border transition-all"
                 style={{
                   backgroundColor: mode === m.value ? "#06C755" : "white",
@@ -183,40 +169,70 @@ export function ScheduleForm() {
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              到着したい日時
-            </label>
-            <input
-              type="datetime-local"
-              value={arrival}
-              onChange={(e) => setArrival(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
-              required
-            />
-          </div>
-          <div className="w-24">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              予定の長さ
-            </label>
-            <select
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
-              className="w-full border border-gray-300 rounded-xl px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-700">
+            その日の予定（訪れる順に入力）
+          </label>
+          {stops.map((stop, i) => (
+            <div
+              key={i}
+              className="rounded-2xl border border-gray-200 p-3 space-y-2 relative"
             >
-              {[30, 60, 90, 120, 180].map((d) => (
-                <option key={d} value={d}>
-                  {d}分
-                </option>
-              ))}
-            </select>
-          </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: "#06C755", color: "white" }}
+                >
+                  {i + 1}
+                </span>
+                <input
+                  type="text"
+                  value={stop.title}
+                  onChange={(e) => updateStop(i, { title: e.target.value })}
+                  placeholder="予定名（例：打ち合わせ）"
+                  className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                />
+                {stops.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => removeStop(i)}
+                    className="text-gray-400 hover:text-red-500 text-lg leading-none px-1"
+                    aria-label="削除"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              <input
+                type="text"
+                value={stop.location}
+                onChange={(e) => updateStop(i, { location: e.target.value })}
+                placeholder="場所（例：渋谷駅）"
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                required
+              />
+              <input
+                type="datetime-local"
+                value={stop.time}
+                onChange={(e) => updateStop(i, { time: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                required
+              />
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addStop}
+            className="w-full py-2 rounded-xl text-sm font-medium border border-dashed transition-all"
+            style={{ borderColor: "#06C755", color: "#06C755" }}
+          >
+            ＋ 予定を追加
+          </button>
         </div>
 
         <button
           type="submit"
-          disabled={loading || !origin.trim() || !destination.trim() || !arrival}
+          disabled={!canSubmit}
           className="w-full py-3 rounded-xl text-white font-bold text-sm transition-all disabled:opacity-50"
           style={{ backgroundColor: "#06C755" }}
         >
@@ -230,71 +246,78 @@ export function ScheduleForm() {
         </div>
       )}
 
-      {estimate && arrivalDate && departureDate && (
-        <div className="mt-5 space-y-4">
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-semibold text-gray-700">
-                推定移動時間
-              </span>
-              <div className="flex items-center gap-1">
-                <input
-                  type="number"
-                  min={1}
-                  value={minutes}
-                  onChange={(e) => setMinutes(Math.max(1, Number(e.target.value)))}
-                  className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
-                <span className="text-sm text-gray-600">分</span>
-              </div>
-            </div>
-            {estimate.note && (
-              <p className="text-xs text-gray-500 mb-3">💡 {estimate.note}</p>
-            )}
-            <div className="flex items-center justify-between text-sm bg-gray-50 rounded-xl px-3 py-2">
-              <div className="text-center">
-                <p className="text-xs text-gray-400">出発</p>
-                <p className="font-semibold text-gray-800">
-                  {formatTime(departureDate)}
+      {segments && (
+        <div className="mt-5 space-y-3">
+          <p className="text-sm font-medium text-gray-600">
+            予定の間に挟む移動時間
+          </p>
+          {travelBlocks.map(({ seg, from, to, arrival, departure, url }, i) => (
+            <div
+              key={i}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+            >
+              <p className="text-sm font-semibold text-gray-800 mb-2">
+                {from.location} → {to.location}
+              </p>
+              {seg.minutes === 0 ? (
+                <p className="text-xs text-gray-500">
+                  同じ場所のため移動なし
                 </p>
-              </div>
-              <span className="text-gray-300">──▶</span>
-              <div className="text-center">
-                <p className="text-xs text-gray-400">到着</p>
-                <p className="font-semibold text-gray-800">
-                  {formatTime(arrivalDate)}
-                </p>
-              </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-gray-500">推定移動時間</span>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        value={seg.minutes}
+                        onChange={(e) =>
+                          setSegmentMinutes(i, Math.max(0, Number(e.target.value)))
+                        }
+                        className="w-14 border border-gray-300 rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-green-400"
+                      />
+                      <span className="text-sm text-gray-600">分</span>
+                    </div>
+                  </div>
+                  {seg.note && (
+                    <p className="text-xs text-gray-500 mb-2">💡 {seg.note}</p>
+                  )}
+                  {departure && arrival && (
+                    <div className="flex items-center justify-between text-sm bg-gray-50 rounded-xl px-3 py-2 mb-3">
+                      <div className="text-center">
+                        <p className="text-xs text-gray-400">出発</p>
+                        <p className="font-semibold text-gray-800">
+                          {formatTime(departure)}
+                        </p>
+                      </div>
+                      <span className="text-gray-300">──▶</span>
+                      <div className="text-center">
+                        <p className="text-xs text-gray-400">到着</p>
+                        <p className="font-semibold text-gray-800">
+                          {formatTime(arrival)}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {url && (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block w-full py-2.5 rounded-xl text-white font-bold text-sm text-center transition-all"
+                      style={{ backgroundColor: "#4285F4" }}
+                    >
+                      🚃 移動時間をGoogleカレンダーに追加
+                    </a>
+                  )}
+                </>
+              )}
             </div>
-            <p className="text-[11px] text-gray-400 mt-2 text-center">
-              ※ AIによる概算です。正確な時間は経路検索でご確認ください
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            {travelUrl && (
-              <a
-                href={travelUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full py-3 rounded-xl text-white font-bold text-sm text-center transition-all"
-                style={{ backgroundColor: "#4285F4" }}
-              >
-                🚃 移動時間をGoogleカレンダーに追加
-              </a>
-            )}
-            {eventUrl && (
-              <a
-                href={eventUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full py-3 rounded-xl font-bold text-sm text-center border transition-all"
-                style={{ borderColor: "#4285F4", color: "#4285F4" }}
-              >
-                🗓️ 予定「{title || "予定"}」をカレンダーに追加
-              </a>
-            )}
-          </div>
+          ))}
+          <p className="text-[11px] text-gray-400 text-center">
+            ※ AIによる概算です。正確な時間は経路検索でご確認ください
+          </p>
         </div>
       )}
     </div>

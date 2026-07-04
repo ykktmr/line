@@ -60,7 +60,7 @@ export default function Home() {
           ) : (
             <>
               <h2 className="text-sm font-semibold text-gray-700 mb-4">
-                移動時間を計算してGoogleカレンダーに登録
+                予定の間の移動時間を計算してカレンダーに登録
               </h2>
               <ScheduleForm />
             </>
