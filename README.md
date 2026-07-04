@@ -35,18 +35,23 @@ Google カレンダーに登録する**機能を備えています。
 | `SYNC_DAYS_AHEAD` | 任意 | 何日先まで同期するか（既定 `7`） |
 | `CRON_SECRET` | 任意 | 設定すると `/api/calendar/sync`・`/api/calendar/watch` を `Authorization: Bearer` で保護 |
 | `WEBHOOK_TOKEN` | 任意 | Push 通知の検証トークン |
-| `TOKEN_STORE_PATH` | 任意 | OAuth トークン保存先（既定 `.data/google-tokens.json`） |
+| `TOKEN_STORE_PATH` | 任意 | KV 未接続時のローカル保存先（既定 `.data/google-tokens.json`） |
 
-### 3. 定期実行（cron）
+### 3. トークンの保存先（重要）
+
+Vercel などのサーバーレス環境ではファイルシステムが永続化されないため、OAuth トークンは
+**Vercel KV（または互換の Upstash Redis）に保存する**実装になっています
+（`app/lib/tokenStore.ts`）。Vercel の「Storage」タブから KV データベースを作成しプロジェクトに
+接続すると、`KV_REST_API_URL` / `KV_REST_API_TOKEN` が自動で環境変数に追加され、自動的にそちらが
+使われます。KV 未接続の場合はローカルファイルにフォールバックします（ローカル開発用。本番では
+永続化されないため非推奨）。
+
+### 4. 定期実行（cron）
 
 - `GET /api/calendar/watch` … Push 通知チャンネルの貼り直し（最長 7 日で失効するため 1 日 1 回程度）。
 - `GET /api/calendar/sync` … Webhook の取りこぼしに備えた保険の同期（数時間おき）。
 
 Vercel の場合は `vercel.json` の `crons` で上記エンドポイントを叩き、`CRON_SECRET` を付与してください。
-
-> **注**: 既定のトークン保存はローカルファイル（`TOKEN_STORE_PATH`）です。ファイルシステムが
-> 揮発するサーバーレス環境では、`app/lib/tokenStore.ts` の `TokenStore` を KV / DB 実装に
-> 差し替えてください。
 
 ## Getting Started
 
