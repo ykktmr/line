@@ -20,9 +20,15 @@ function norm(s?: string): string {
   return (s ?? "").trim().toLowerCase();
 }
 
+// ISO 8601 の日付部分（"YYYY-MM-DD"）を、そのイベント自身のタイムゾーンオフセットのまま取り出す。
+// UTC変換すると日付がずれることがあるため、文字列の先頭10文字をそのまま使う。
+function localDateKey(iso: string): string {
+  return iso.slice(0, 10);
+}
+
 /**
- * 場所を持つ実予定を開始時刻順に並べ、隣り合う（場所の異なる）ペアを列挙する。
- * 自動生成した移動ブロック自体は対象から除外する。
+ * 場所を持つ実予定を開始時刻順に並べ、隣り合う（同じ日・場所が異なる）ペアを列挙する。
+ * 日をまたぐ予定同士や、自動生成した移動ブロック自体は対象から除外する。
  */
 export function travelLegs(events: CalEvent[]): TravelLeg[] {
   const real = events
@@ -33,6 +39,7 @@ export function travelLegs(events: CalEvent[]): TravelLeg[] {
   for (let i = 0; i < real.length - 1; i++) {
     const from = real[i];
     const to = real[i + 1];
+    if (localDateKey(from.start) !== localDateKey(to.start)) continue; // 日をまたぐ場合は移動を作らない
     if (norm(from.location) === norm(to.location)) continue; // 同じ場所なら移動不要
     legs.push({ from, to });
   }
