@@ -93,6 +93,9 @@ export interface PlannedBlock {
 /**
  * 各区間の移動時間（分）を解決する関数を受け取り、作成すべき移動ブロックを組み立てる。
  * minutes が 0 以下の区間はブロックを作らない（同一地点や解決失敗）。
+ * maxGapMultiplier を指定すると、前の予定の終了〜次の予定の開始までの空き時間が
+ * 「移動時間 × maxGapMultiplier」を超える場合はブロックを作らない
+ * （すでに十分な余裕があり、移動ブロックを作る意味が薄いため）。
  */
 export async function planTravelBlocks(
   events: CalEvent[],
@@ -100,7 +103,8 @@ export async function planTravelBlocks(
     from: string,
     to: string
   ) => Promise<{ minutes: number; note: string }>,
-  homeLocation?: string
+  homeLocation?: string,
+  maxGapMultiplier?: number
 ): Promise<PlannedBlock[]> {
   const legs = travelLegs(events, homeLocation);
   const blocks: PlannedBlock[] = [];
@@ -110,6 +114,12 @@ export async function planTravelBlocks(
       leg.to.location as string
     );
     if (!minutes || minutes <= 0) continue;
+    if (maxGapMultiplier != null) {
+      const gapMinutes =
+        (new Date(leg.to.start).getTime() - new Date(leg.from.end).getTime()) /
+        60_000;
+      if (gapMinutes > minutes * maxGapMultiplier) continue;
+    }
     const { start, end } = blockTimes(leg.to.start, minutes);
     blocks.push({
       forEventId: leg.to.id,

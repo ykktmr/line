@@ -34,10 +34,13 @@ export async function runSync(daysAhead = 7): Promise<SyncResult> {
   const events = await listEvents(accessToken, timeMin, timeMax);
   const mode = defaultMode();
 
+  const maxGapMultiplier = Number(process.env.MAX_GAP_MULTIPLIER ?? 2);
+
   const desired = await planTravelBlocks(
     events,
     (from, to) => estimateTravel(from, to, mode),
-    process.env.HOME_LOCATION
+    process.env.HOME_LOCATION,
+    maxGapMultiplier
   );
 
   const existingAuto = events.filter((e) => e.isAutoTravel);

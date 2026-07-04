@@ -34,6 +34,7 @@ Google カレンダーに登録する**機能を備えています。
 | `TRAVEL_MODE` | 任意 | `train`(既定) / `car` / `walk` / `bike` |
 | `SYNC_DAYS_AHEAD` | 任意 | 何日先まで同期するか（既定 `7`） |
 | `HOME_LOCATION` | 任意 | 設定すると、各日の最初の予定の前に自宅からの移動ブロックも追加する |
+| `MAX_GAP_MULTIPLIER` | 任意 | 予定間の空き時間が「移動時間 × この値」を超えたらブロックを作らない（既定 `2`） |
 | `CRON_SECRET` | 任意 | 設定すると `/api/calendar/sync`・`/api/calendar/watch` を `Authorization: Bearer` で保護 |
 | `WEBHOOK_TOKEN` | 任意 | Push 通知の検証トークン |
 | `TOKEN_STORE_PATH` | 任意 | KV 未接続時のローカル保存先（既定 `.data/google-tokens.json`） |
