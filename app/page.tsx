@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { DraftForm } from "./components/DraftForm";
 import { ReviewForm } from "./components/ReviewForm";
+import { ScheduleForm } from "./components/ScheduleForm";
 
-type Mode = "draft" | "review";
+type Mode = "draft" | "review" | "schedule";
 
 export default function Home() {
   const [mode, setMode] = useState<Mode>("draft");
@@ -26,7 +27,7 @@ export default function Home() {
         </div>
 
         <div className="flex bg-white rounded-2xl p-1 shadow-sm mb-5">
-          {(["draft", "review"] as const).map((m) => (
+          {(["draft", "review", "schedule"] as const).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
@@ -36,7 +37,7 @@ export default function Home() {
                 color: mode === m ? "white" : "#888",
               }}
             >
-              {m === "draft" ? "✍️ 起草" : "📝 添削"}
+              {m === "draft" ? "✍️ 起草" : m === "review" ? "📝 添削" : "🗓️ 予定"}
             </button>
           ))}
         </div>
@@ -49,12 +50,19 @@ export default function Home() {
               </h2>
               <DraftForm />
             </>
-          ) : (
+          ) : mode === "review" ? (
             <>
               <h2 className="text-sm font-semibold text-gray-700 mb-4">
                 メッセージを貼り付けて改善案を取得
               </h2>
               <ReviewForm />
+            </>
+          ) : (
+            <>
+              <h2 className="text-sm font-semibold text-gray-700 mb-4">
+                移動時間を計算してGoogleカレンダーに登録
+              </h2>
+              <ScheduleForm />
             </>
           )}
         </div>
