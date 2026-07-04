@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DraftForm } from "./components/DraftForm";
 import { ReviewForm } from "./components/ReviewForm";
 import { ScheduleForm } from "./components/ScheduleForm";
+import { AutoSyncPanel } from "./components/AutoSyncPanel";
 
 type Mode = "draft" | "review" | "schedule";
 
@@ -62,6 +63,7 @@ export default function Home() {
               <h2 className="text-sm font-semibold text-gray-700 mb-4">
                 予定の間の移動時間を計算してカレンダーに登録
               </h2>
+              <AutoSyncPanel />
               <ScheduleForm />
             </>
           )}
