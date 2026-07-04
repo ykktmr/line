@@ -29,16 +29,38 @@ function localDateKey(iso: string): string {
 /**
  * 場所を持つ実予定を開始時刻順に並べ、隣り合う（同じ日・場所が異なる）ペアを列挙する。
  * 日をまたぐ予定同士や、自動生成した移動ブロック自体は対象から除外する。
+ * homeLocation を指定すると、各日の最初の予定の前に「自宅」からの移動も対象に加える。
  */
-export function travelLegs(events: CalEvent[]): TravelLeg[] {
+export function travelLegs(events: CalEvent[], homeLocation?: string): TravelLeg[] {
   const real = events
     .filter((e) => !e.isAutoTravel && norm(e.location))
     .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
+  const withHome: CalEvent[] = [];
+  if (homeLocation?.trim()) {
+    let lastDateKey: string | null = null;
+    for (const e of real) {
+      const dateKey = localDateKey(e.start);
+      if (dateKey !== lastDateKey) {
+        withHome.push({
+          id: `home:${dateKey}`,
+          summary: "自宅",
+          location: homeLocation,
+          start: e.start,
+          end: e.start,
+        });
+        lastDateKey = dateKey;
+      }
+      withHome.push(e);
+    }
+  } else {
+    withHome.push(...real);
+  }
+
   const legs: TravelLeg[] = [];
-  for (let i = 0; i < real.length - 1; i++) {
-    const from = real[i];
-    const to = real[i + 1];
+  for (let i = 0; i < withHome.length - 1; i++) {
+    const from = withHome[i];
+    const to = withHome[i + 1];
     if (localDateKey(from.start) !== localDateKey(to.start)) continue; // 日をまたぐ場合は移動を作らない
     if (norm(from.location) === norm(to.location)) continue; // 同じ場所なら移動不要
     legs.push({ from, to });
@@ -77,9 +99,10 @@ export async function planTravelBlocks(
   resolveMinutes: (
     from: string,
     to: string
-  ) => Promise<{ minutes: number; note: string }>
+  ) => Promise<{ minutes: number; note: string }>,
+  homeLocation?: string
 ): Promise<PlannedBlock[]> {
-  const legs = travelLegs(events);
+  const legs = travelLegs(events, homeLocation);
   const blocks: PlannedBlock[] = [];
   for (const leg of legs) {
     const { minutes, note } = await resolveMinutes(

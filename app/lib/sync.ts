@@ -34,8 +34,10 @@ export async function runSync(daysAhead = 7): Promise<SyncResult> {
   const events = await listEvents(accessToken, timeMin, timeMax);
   const mode = defaultMode();
 
-  const desired = await planTravelBlocks(events, (from, to) =>
-    estimateTravel(from, to, mode)
+  const desired = await planTravelBlocks(
+    events,
+    (from, to) => estimateTravel(from, to, mode),
+    process.env.HOME_LOCATION
   );
 
   const existingAuto = events.filter((e) => e.isAutoTravel);
