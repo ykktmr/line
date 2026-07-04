@@ -1,5 +1,6 @@
 // 2地点間の片道移動時間（分）を推定する。
-// GOOGLE_MAPS_API_KEY があれば Distance Matrix API を使い、なければ Claude で概算する。
+// GOOGLE_MAPS_API_KEY があれば Distance Matrix API のみを使う（経路が引けない場合はスキップ）。
+// なければ Claude で概算する。
 
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -108,8 +109,10 @@ export async function estimateTravel(
 ): Promise<Estimate> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (key) {
+    // 地図キーがある場合はそちらのみを使う。経路が引けない（NOT_FOUND等）場合も
+    // AIへフォールバックはせず、その区間は移動時間なし（スキップ）として扱う。
     const viaMaps = await estimateWithMaps(from, to, mode, key);
-    if (viaMaps) return viaMaps;
+    return viaMaps ?? { minutes: 0, note: "" };
   }
   return estimateWithAI(from, to, mode);
 }
