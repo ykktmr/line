@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "gemini-cli": {
+      "command": "npx",
+      "args": ["-y", "gemini-mcp-tool"]
+    },
+    "codex-cli": {
+      "command": "codex",
+      "args": ["mcp-server", "-c", "sandbox_mode=read-only"]
+    },
     "multi-llm": {
       "command": "node",
       "args": ["./tools/multi-llm-mcp/server.mjs"]

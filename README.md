@@ -57,18 +57,21 @@ Vercel の場合は `vercel.json` の `crons` で上記エンドポイントを�
 
 ## Claude Code から ChatGPT / Gemini / Claude を呼ぶ
 
-`tools/multi-llm-mcp/` に、Claude Code のセッション中から3モデルへ質問を投げられる
-MCP サーバを同梱しています。`/ask3 <質問>` で同じ質問を並列に投げ、回答を比較できます。
+Claude Code をハブにして、ChatGPT（Codex）と Gemini を呼び分けられるようにしてあります。
+「gemini で調べて、その結果を踏まえて gpt で書いて」が1セッションで完結します。
 
-`npm install` を済ませたうえで、`.env.local`（`.gitignore` 済み）に各社の API キーを置きます。
+`.mcp.json` に3つの MCP サーバを登録済みです。
 
-```dotenv
-OPENAI_API_KEY=sk-...
-GEMINI_API_KEY=...
-ANTHROPIC_API_KEY=sk-ant-...
-```
+| サーバ | 中身 | 認証 |
+| --- | --- | --- |
+| `gemini-cli` | Gemini CLI のラッパー（`gemini-mcp-tool`） | Google アカウント |
+| `codex-cli` | Codex CLI を MCP 化（`codex mcp-server`） | ChatGPT アカウント |
+| `multi-llm` | 各社 API を直接叩く自作サーバ（`tools/multi-llm-mcp/`） | API キー |
 
-セットアップと環境変数の詳細は [`tools/multi-llm-mcp/README.md`](tools/multi-llm-mcp/README.md) を参照してください。
+振り分けルールは `.claude/ai-routing.md`（`CLAUDE.md` から読み込み）。
+`/ask3 <質問>` で3モデルへ並列に投げて回答を比較できます。
+
+セットアップ手順は [`docs/multi-ai-setup.md`](docs/multi-ai-setup.md) を参照してください。
 
 ## Getting Started
 
