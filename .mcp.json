@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "multi-llm": {
+      "command": "node",
+      "args": ["./tools/multi-llm-mcp/server.mjs"]
+    }
+  }
+}

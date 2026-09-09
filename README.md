@@ -55,6 +55,21 @@ Vercel などのサーバーレス環境ではファイルシステムが永続�
 
 Vercel の場合は `vercel.json` の `crons` で上記エンドポイントを叩き、`CRON_SECRET` を付与してください。
 
+## Claude Code から ChatGPT / Gemini / Claude を呼ぶ
+
+`tools/multi-llm-mcp/` に、Claude Code のセッション中から3モデルへ質問を投げられる
+MCP サーバを同梱しています。`/ask3 <質問>` で同じ質問を並列に投げ、回答を比較できます。
+
+`npm install` を済ませたうえで、`.env.local`（`.gitignore` 済み）に各社の API キーを置きます。
+
+```dotenv
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+セットアップと環境変数の詳細は [`tools/multi-llm-mcp/README.md`](tools/multi-llm-mcp/README.md) を参照してください。
+
 ## Getting Started
 
 First, run the development server:
