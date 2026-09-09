@@ -49,19 +49,38 @@ claude
 
 ### 2. Gemini（`gemini-cli`）
 
-Gemini CLI 本体と、それを MCP 化するツールを入れます。
+Gemini の CLI は **Antigravity CLI（`agy`）に置き換わりました**。旧 `gemini-cli` は
+2026-06-18 に Google AI Pro / Ultra アカウントへの提供を終了しており、
+`gemini-mcp-tool` も既定のバックエンドが `agy` になっています。
 
-```bash
-npm install -g @google/gemini-cli
-gemini
+**Windows（PowerShell）**
+
+```powershell
+irm https://antigravity.google/cli/install.ps1 | iex
 ```
 
-`gemini` を一度起動して Google アカウントでログインしてください（無料枠が使えます）。
-API キーを使う場合は [Google AI Studio](https://aistudio.google.com/apikey) で取得し、
-`GEMINI_API_KEY` に設定します。
+**macOS / Linux**
+
+```bash
+curl -fsSL https://antigravity.google/cli/install.sh | bash
+```
+
+インストール先は `~/.local/bin`（Node.js 不要の単一バイナリ）。初回は次を実行すると
+ブラウザが開き、Google アカウントでサインインできます（プレビュー期間中は無料アカウントで可）。
+
+```bash
+agy -p "say hi"
+```
 
 MCP 側（`gemini-mcp-tool`）は `.mcp.json` から `npx -y gemini-mcp-tool` で起動するため、
 **個別のインストールは不要**です。
+
+> **PATH に注意。** MCP サーバは Claude Code とは別プロセスで起動するため、シェルの PATH を
+> 引き継がないことがあります。`Could not find the "agy" executable.` が出たら、
+> `~/.local/bin` を PATH に追加するか、環境変数 `AGY_CLI_PATH` に `agy` の絶対パスを設定してください。
+
+> **旧 Gemini CLI を使いたい場合**は `GEMINI_MCP_BACKEND=gemini` を設定すると
+> `gemini` コマンドを使い続けられますが、有料 API キーか Enterprise / Standard ライセンスが必要です。
 
 > 参考にした記事では `gemini-mcp-tool-windows-fixed` という**有志のフォーク**が使われて
 > いますが、ここでは本家の [`gemini-mcp-tool`](https://github.com/jamubc/gemini-mcp-tool)
@@ -134,6 +153,15 @@ geminiで競合の動向を調べて、その結果を踏まえてgptで戦略�
 `/ask3` は3モデルに同じ質問を投げ、一致点・相違点・結論の形にまとめます。
 
 ---
+
+## うまく動かないとき
+
+| 症状 | 原因と対処 |
+| --- | --- |
+| `Could not find the "agy" executable.` | Antigravity CLI が未インストールか PATH 外。上記「2. Gemini」を参照し、`AGY_CLI_PATH` を設定する |
+| Codex 側が `401 Unauthorized` | `codex login` が済んでいない。ログインし直す |
+| `multi-llm` が全部「未設定です」 | `.env.local` に API キーが無い。3モデル並列比較を使わないなら `.mcp.json` から `multi-llm` を消してよい |
+| `/mcp` にサーバが出てこない | リポジトリ直下で `claude` を起動しているか確認。別の場所から使うなら「このリポジトリ以外でも使いたい場合」を参照 |
 
 ## 注意点
 
